@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 public sealed class ParallaxEffectApplicator : MonoBehaviour
@@ -26,15 +26,15 @@ public sealed class ParallaxEffectApplicator : MonoBehaviour
     [Space]
     [SerializeField] private ParallaxLayer[] parallaxLayers = null;
 
-    private readonly Dictionary<MovementDirection, Vector3> movementDirectionMap = new Dictionary<MovementDirection, Vector3>
+    private float _initialCameraVerticalPosition = 0f;
+    private float _lastCameraHorizontalPosition = 0f;
+    private Quaternion _lastCameraRotation = Quaternion.identity;
+    
+    private static readonly Dictionary<MovementDirection, Vector3> MovementDirectionMap = new Dictionary<MovementDirection, Vector3>
     {
         { MovementDirection.Left, Vector3.left },
         { MovementDirection.Right, Vector3.right }
     };
-    
-    private float initialCameraVerticalPosition = 0f;
-    private float lastCameraHorizontalPosition = 0f;
-    private Quaternion lastCameraRotation = Quaternion.identity;
 
     public enum MotionSource
     {
@@ -52,11 +52,11 @@ public sealed class ParallaxEffectApplicator : MonoBehaviour
     {
         Transform cameraTransform = targetCamera.transform;
         
-        initialCameraVerticalPosition = cameraTransform.position.y;
-        lastCameraHorizontalPosition = cameraTransform.position.x;
-        lastCameraRotation = cameraTransform.rotation;
+        _initialCameraVerticalPosition = cameraTransform.position.y;
+        _lastCameraHorizontalPosition = cameraTransform.position.x;
+        _lastCameraRotation = cameraTransform.rotation;
         
-        AddSideLayersTo(parallaxLayers);
+        AddSideLayersTo();
     }
 
     private void Update()
@@ -66,43 +66,43 @@ public sealed class ParallaxEffectApplicator : MonoBehaviour
             ForceLayersRootLookAtCamera();
         }
         
-        WrapLayersInBounds(parallaxLayers);
-        ApplyParallaxTo(parallaxLayers);
+        WrapLayersInBounds();
+        ApplyParallaxTo();
     }
 
     private void ForceLayersRootLookAtCamera()
     {
         Transform cameraTransform = targetCamera.transform;
 
-        if (cameraTransform.rotation == lastCameraRotation)
+        if (cameraTransform.rotation == _lastCameraRotation)
         {
             return;
         }
 
-        layersRoot.position = cameraTransform.position + cameraTransform.forward + cameraTransform.TransformDirection(-initialCameraVerticalPosition * Vector3.up);
+        layersRoot.position = cameraTransform.position + cameraTransform.forward + cameraTransform.TransformDirection(-_initialCameraVerticalPosition * Vector3.up);
         layersRoot.rotation = Quaternion.LookRotation(cameraTransform.forward, cameraTransform.up);
         
-        lastCameraRotation = cameraTransform.rotation;
+        _lastCameraRotation = cameraTransform.rotation;
     }
 
-    private void ApplyParallaxTo(ParallaxLayer[] layers)
+    private void ApplyParallaxTo()
     {
         float currentCameraPosition = targetCamera.transform.position.x;
         
         Vector3 deltaDistance = motionSource == MotionSource.Camera
-            ? Vector3.right * (currentCameraPosition - lastCameraHorizontalPosition)
-            : selfSpeed * movementDirectionMap[selfDirection] * Time.deltaTime;
-        lastCameraHorizontalPosition = currentCameraPosition;
+            ? Vector3.right * (currentCameraPosition - _lastCameraHorizontalPosition)
+            : selfSpeed * Time.deltaTime * MovementDirectionMap[selfDirection];
+        _lastCameraHorizontalPosition = currentCameraPosition;
         
-        foreach (var layer in layers)
+        foreach (var layer in parallaxLayers)
         {
             layer.TranslateWithParallax(deltaDistance, motionSource);
         }
     }
 
-    private void WrapLayersInBounds(ParallaxLayer[] layers)
+    private void WrapLayersInBounds()
     {
-        foreach (var layer in layers)
+        foreach (var layer in parallaxLayers)
         {
             float signDistance = layer.RectTransform.InverseTransformPoint(targetCamera.transform.position).x;
             
@@ -117,19 +117,24 @@ public sealed class ParallaxEffectApplicator : MonoBehaviour
         }
     }
 
-    private void AddSideLayersTo(ParallaxLayer[] layers)
+    private void AddSideLayersTo()
     {
-        foreach (var layer in layers)
+        foreach (var layer in parallaxLayers)
         {
-            RectTransform layerRectTransform = layer.RectTransform;
+            RectTransform parent = layer.RectTransform;
+            string parentName = parent.gameObject.name;
             
-            string layerName = layerRectTransform.gameObject.name;
-            Vector3 horizontalOffset = Vector3.right * layerRectTransform.rect.width;
+            Vector3 horizontalOffset = Vector3.right * parent.rect.width;
+            var leftSideLayer = Instantiate(parent, parent.position - horizontalOffset, Quaternion.identity);
+            var rightSideLayer = Instantiate(parent, parent.position + horizontalOffset, Quaternion.identity);
 
-            Instantiate(layerRectTransform, layerRectTransform.position - horizontalOffset, Quaternion.identity, layerRectTransform)
-                .gameObject.name = $"{layerName} - Left";
-            Instantiate(layerRectTransform, layerRectTransform.position + horizontalOffset, Quaternion.identity, layerRectTransform)
-                .gameObject.name = $"{layerName} - Right";
+            leftSideLayer.gameObject.name = $"{parentName} - Left";
+            rightSideLayer.gameObject.name = $"{parentName} - Right";
+            
+            leftSideLayer.SetParent(parent);
+            rightSideLayer.SetParent(parent);
+            
+            leftSideLayer.sizeDelta = rightSideLayer.sizeDelta = Vector2.zero;
         }
     }
 }
