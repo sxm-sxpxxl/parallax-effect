@@ -4,6 +4,7 @@
   "displayName": "Parallax Effect",
   "description": "A simple tool for creating a parallax effect with images on UI canvas.",
   "unity": "2019.1",
+  "license": "MIT",
   "keywords": [
     "unity",
     "parallax"
