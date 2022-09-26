@@ -245,7 +245,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   motionSource: 0
   targetCamera: {fileID: 410188642}
-  selfSpeed: 0
+  selfSpeed: 0.1
   selfDirection: 0
   forceRootLookAtCamera: 1
   layersRoot: {fileID: 1834251464}
